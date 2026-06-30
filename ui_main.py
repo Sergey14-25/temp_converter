@@ -1,0 +1,279 @@
+import logging
+from PyQt5.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QFormLayout, QPushButton, QLabel, QDoubleSpinBox, QLineEdit,
+    QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox,
+    QFileDialog, QSplitter, QGroupBox
+)
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QPixmap, QImage
+from PIL import Image
+import database
+
+logger = logging.getLogger(__name__)
+
+class MainWindow(QMainWindow):
+    "Главное окно приложения конвертера температур"
+
+    def __init__(self):
+        "Инициализация главного окна"
+        super().__init__()
+        self.setWindowTitle("Конвертер температур v1.0")
+        self.resize(1050, 650)
+        self.setMinimumSize(850, 500)
+
+        self.db = database.DatabaseManager()
+        self.db.init_db()
+
+        self.current_image_path = ""
+
+        self.update_timer = QTimer()
+        self.update_timer.setSingleShot(True)
+        self.update_timer.timeout.connect(self._recalculate_temperatures)
+
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+
+        self._setup_ui()
+        self._bind_signals()
+        self._refresh_table()
+
+        logger.info("Главное окно инициализировано")
+
+    def _setup_ui(self):
+        "Верстка через менеджеры компоновки"
+        main_layout = QHBoxLayout()
+        self.centralWidget().setLayout(main_layout)
+
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+
+        input_group = QGroupBox("Ввод температуры")
+        input_layout = QFormLayout()
+
+        self.spin_celsius = QDoubleSpinBox()
+        self.spin_celsius.setRange(-273.15, 1000.0)
+        self.spin_celsius.setDecimals(2)
+        self.spin_celsius.setValue(25.0)
+        self.spin_celsius.setSuffix(" °C")
+        self.spin_celsius.setSingleStep(1.0)
+        input_layout.addRow("Температура (°C):", self.spin_celsius)
+
+        input_group.setLayout(input_layout)
+        left_layout.addWidget(input_group)
+
+        result_group = QGroupBox("Результаты конвертации")
+        result_layout = QGridLayout()
+
+        self.lbl_celsius = QLabel("25.00 °C")
+        self.lbl_celsius.setStyleSheet("background-color: #ffebee; color: #c62828; font-size: 24px; font-weight: bold; padding: 15px; border-radius: 8px;")
+        self.lbl_celsius.setAlignment(Qt.AlignCenter)
+
+        self.lbl_fahrenheit = QLabel("77.00 °F")
+        self.lbl_fahrenheit.setStyleSheet("background-color: #e3f2fd; color: #1565c0; font-size: 24px; font-weight: bold; padding: 15px; border-radius: 8px;")
+        self.lbl_fahrenheit.setAlignment(Qt.AlignCenter)
+
+        self.lbl_kelvin = QLabel("298.15 K")
+        self.lbl_kelvin.setStyleSheet("background-color: #e8f5e9; color: #2e7d32; font-size: 24px; font-weight: bold; padding: 15px; border-radius: 8px;")
+        self.lbl_kelvin.setAlignment(Qt.AlignCenter)
+
+        result_layout.addWidget(self.lbl_celsius, 0, 0)
+        result_layout.addWidget(self.lbl_fahrenheit, 0, 1)
+        result_layout.addWidget(self.lbl_kelvin, 0, 2)
+
+        result_group.setLayout(result_layout)
+        left_layout.addWidget(result_group)
+
+        self.lbl_formula = QLabel("F = C × 9/5 + 32 | K = C + 273.15")
+        self.lbl_formula.setStyleSheet("font-size: 14px; font-style: italic; padding: 10px; background-color: #f5f5f5; border-radius: 5px;")
+        self.lbl_formula.setAlignment(Qt.AlignCenter)
+        left_layout.addWidget(self.lbl_formula)
+
+        notes_group = QGroupBox("Заметки")
+        notes_layout = QVBoxLayout()
+        self.le_notes = QLineEdit()
+        self.le_notes.setPlaceholderText("Введите заметку...")
+        notes_layout.addWidget(self.le_notes)
+        notes_group.setLayout(notes_layout)
+        left_layout.addWidget(notes_group)
+
+        self.btn_save = QPushButton("Сохранить в историю")
+        self.btn_save.setStyleSheet(
+            "background-color: #4caf50; color: white; font-size: 14px; padding: 10px; border-radius: 5px;")
+        left_layout.addWidget(self.btn_save)
+
+        left_layout.addStretch()
+
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+
+        self.table = QTableWidget()
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["°C", "°F", "K", "Формула", "Заметки"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        right_layout.addWidget(self.table)
+
+        self.lbl_image = QLabel("Фото термометра")
+        self.lbl_image.setAlignment(Qt.AlignCenter)
+        self.lbl_image.setMinimumHeight(200)
+        self.lbl_image.setStyleSheet("background-color: #fafafa; border: 2px dashed #bbb; border-radius: 8px;")
+        right_layout.addWidget(self.lbl_image)
+
+        self.btn_load_img = QPushButton("Загрузить фото термометра")
+        self.btn_load_img.setStyleSheet("background-color: #ff9800; color: white; padding: 10px; border-radius: 5px;")
+        right_layout.addWidget(self.btn_load_img)
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(left_widget)
+        splitter.addWidget(right_widget)
+        splitter.setSizes([450, 550])
+
+        main_layout.addWidget(splitter)
+
+    def _bind_signals(self):
+        "Привязка сигналов к слотам"
+
+        self.spin_celsius.valueChanged.connect(self._on_temp_value_changed)
+
+        self.btn_save.clicked.connect(self._on_save)
+        self.btn_load_img.clicked.connect(self._on_load_image)
+
+        self.table.itemSelectionChanged.connect(self._on_select_row)
+
+        logger.info("Сигналы привязаны")
+
+    def _on_temp_value_changed(self):
+        """Обработчик изменения значения с задержкой через QTimer."""
+        self.update_timer.start(300)
+
+    def _recalculate_temperatures(self):
+        "Пересчет температур при изменении"
+        try:
+            celsius = self.spin_celsius.value()
+
+            if celsius < -273.15:
+                logger.warning(f"Попытка установить температуру ниже абсолютного нуля: {celsius}")
+                return
+
+            fahrenheit = celsius * 9 / 5 + 32
+            kelvin = celsius + 273.15
+
+            self.lbl_celsius.setText(f"{celsius:.2f} °C")
+            self.lbl_fahrenheit.setText(f"{fahrenheit:.2f} °F")
+            self.lbl_kelvin.setText(f"{kelvin:.2f} K")
+
+            logger.info(f"Конвертация: {celsius}°C = {fahrenheit}°F = {kelvin}K")
+        except Exception as e:
+            logger.error(f"Ошибка конвертации: {e}")
+
+    def _on_save(self):
+        "Сохранение конвертации в историю"
+        logger.info("Начало сохранения записи")
+        try:
+            celsius = self.spin_celsius.value()
+            fahrenheit = celsius * 9 / 5 + 32
+            kelvin = celsius + 273.15
+
+            data = {
+                "temp_c": celsius,
+                "temp_f": fahrenheit,
+                "temp_k": kelvin,
+                "formula": "F = C × 9/5 + 32",
+                "notes": self.le_notes.text().strip(),
+                "image_path": self.current_image_path
+            }
+
+            self.db.insert_record(data)
+            self._refresh_table()
+            self.le_notes.clear()
+
+            QMessageBox.information(self, "Успех", "Конвертация сохранена в историю!")
+            logger.info(f"Запись сохранена: {celsius}°C")
+        except ValueError as e:
+            logger.error(f"Ошибка валидации: {e}")
+            QMessageBox.critical(self, "Ошибка валидации", f"Некорректные данные:\n{e}")
+        except Exception as e:
+            logger.error(f"Ошибка сохранения: {e}")
+            QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить запись:\n{e}")
+
+    def _on_load_image(self):
+        "Загрузка изображения термометра через Pillow"
+        try:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Выберите изображение", "", "Images (*.png *.jpg *.jpeg)"
+            )
+            if not path:
+                return
+
+            img = Image.open(path).convert("RGBA")
+            img.thumbnail((200, 200), Image.LANCZOS)
+
+            qt_img = QImage(img.tobytes(), img.width, img.height, QImage.Format_RGBA8888)
+            pixmap = QPixmap.fromImage(qt_img)
+
+            self.lbl_image.setPixmap(pixmap)
+            self.current_image_path = path
+            self.lbl_image.setStyleSheet("background-color: #fff; border: 2px solid #999; border-radius: 8px;")
+            logger.info(f"Изображение загружено: {path}")
+        except Exception as e:
+            logger.error(f"Ошибка загрузки изображения: {e}")
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить изображение:\n{e}")
+
+    def _on_select_row(self):
+        "Заполнение полей при клике на строку таблицы"
+        try:
+            selected = self.table.selectionModel().selectedRows()
+            if not selected:
+                return
+
+            row = selected[0].row()
+            celsius = float(self.table.item(row, 0).text())
+            self.spin_celsius.setValue(celsius)
+            self.le_notes.setText(self.table.item(row, 4).text())
+        except ValueError:
+            pass
+        except Exception as e:
+            logger.error(f"Ошибка выбора строки: {e}")
+
+    def _refresh_table(self):
+        "Обновление таблицы из БД"
+        try:
+            self.table.setRowCount(0)
+            records = self.db.get_all()
+
+            for i, rec in enumerate(records):
+                self.table.insertRow(i)
+                self.table.setItem(i, 0, QTableWidgetItem(f"{rec['temp_c']:.2f}"))
+                self.table.setItem(i, 1, QTableWidgetItem(f"{rec['temp_f']:.2f}"))
+                self.table.setItem(i, 2, QTableWidgetItem(f"{rec['temp_k']:.2f}"))
+                self.table.setItem(i, 3, QTableWidgetItem(rec['formula']))
+                self.table.setItem(i, 4, QTableWidgetItem(rec['notes'] or ""))
+                # Сохраняем ID в невидимой роли
+                self.table.item(i, 0).setData(Qt.UserRole, rec['id'])
+
+            logger.info(f"Таблица обновлена: {len(records)} записей")
+        except Exception as e:
+            logger.error(f"Ошибка обновления таблицы: {e}")
+
+    def closeEvent(self, event):
+        "Переопределение закрытия окна"
+        logger.info("Запрос на закрытие приложения")
+        reply = QMessageBox.question(
+            self, "Выход",
+            "Вы уверены, что хотите закрыть приложение?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            try:
+                self.db.close()
+                logger.info("Приложение закрыто корректно")
+                event.accept()
+            except Exception as e:
+                logger.error(f"Ошибка при закрытии БД: {e}")
+                event.accept()
+        else:
+            logger.info("Закрытие отменено пользователем")
+            event.igno

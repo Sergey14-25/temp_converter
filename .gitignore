@@ -22,3 +22,8 @@ Thumbs.db
 *.db
 *.log
 *.sqlite3
+
+# База данных и логи (генерируются автоматически)
+temperature_converter.db
+converter.log
+*.sqlite3

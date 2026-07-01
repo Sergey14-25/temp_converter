@@ -1,7 +1,3 @@
-"""
-Модуль главного окна приложения "Конвертер температур".
-Реализует интерфейс, сигналы/слоты и логику UI.
-"""
 import logging
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -18,54 +14,52 @@ logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
-    """Главное окно приложения конвертера температур."""
+    "Главное окно приложения конвертера температур"
 
     def __init__(self):
-        """Инициализация главного окна."""
+        "Инициализация главного окна"
         super().__init__()
         self.setWindowTitle("Конвертер температур v1.0")
         self.resize(1050, 650)
         self.setMinimumSize(850, 500)
 
-        # Инициализация БД
+
         self.db = database.DatabaseManager()
         self.db.init_db()
 
-        # Путь к текущему изображению термометра
+
         self.current_image_path = ""
 
-        # Таймер для задержки пересчёта (требование задания: QTimer)
+
         self.update_timer = QTimer()
         self.update_timer.setSingleShot(True)
         self.update_timer.timeout.connect(self._recalculate_temperatures)
 
-        # Центральная часть окна
+
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        # 1. Верстка интерфейса
+
         self._setup_ui()
-        # 2. Привязка событий (сигналы/слоты)
         self._bind_signals()
-        # 3. Загрузка начальных данных в таблицу
         self._refresh_table()
 
         logger.info("Главное окно инициализировано")
 
     def _setup_ui(self):
-        """Верстка через менеджеры компоновки (без setGeometry/move)."""
+        "Верстка через менеджеры компоновки (без setGeometry/move)"
         main_layout = QHBoxLayout()
         self.centralWidget().setLayout(main_layout)
 
-        # === ЛЕВАЯ ПАНЕЛЬ: Ввод и результаты ===
+
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
 
-        # Группа ввода температуры
+
         input_group = QGroupBox("Ввод температуры")
         input_layout = QFormLayout()
 
-        # QDoubleSpinBox — виджет для ввода дробных чисел (требование задания)
+
         self.spin_celsius = QDoubleSpinBox()
         self.spin_celsius.setRange(-273.15, 1000.0)
         self.spin_celsius.setDecimals(2)
@@ -77,7 +71,7 @@ class MainWindow(QMainWindow):
         input_group.setLayout(input_layout)
         left_layout.addWidget(input_group)
 
-        # Группа результатов (3 цветных блока)
+
         result_group = QGroupBox("Результаты конвертации")
         result_layout = QGridLayout()
 
@@ -112,7 +106,7 @@ class MainWindow(QMainWindow):
         result_group.setLayout(result_layout)
         left_layout.addWidget(result_group)
 
-        # Отображение формулы
+
         self.lbl_formula = QLabel("F = C × 9/5 + 32  |  K = C + 273.15")
         self.lbl_formula.setStyleSheet(
             "font-size: 14px; font-style: italic; "
@@ -121,7 +115,7 @@ class MainWindow(QMainWindow):
         self.lbl_formula.setAlignment(Qt.AlignCenter)
         left_layout.addWidget(self.lbl_formula)
 
-        # Поле для заметок
+
         notes_group = QGroupBox("Заметки")
         notes_layout = QVBoxLayout()
         self.le_notes = QLineEdit()
@@ -130,7 +124,7 @@ class MainWindow(QMainWindow):
         notes_group.setLayout(notes_layout)
         left_layout.addWidget(notes_group)
 
-        # Кнопка сохранения
+
         self.btn_save = QPushButton("Сохранить в историю")
         self.btn_save.setStyleSheet(
             "background-color: #4caf50; color: white; "
@@ -140,11 +134,11 @@ class MainWindow(QMainWindow):
 
         left_layout.addStretch()
 
-        # === ПРАВАЯ ПАНЕЛЬ: Таблица и изображение ===
+
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
 
-        # Таблица истории конвертаций
+
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(["°C", "°F", "K", "Формула", "Заметки"])
@@ -153,7 +147,7 @@ class MainWindow(QMainWindow):
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         right_layout.addWidget(self.table)
 
-        # Кнопки управления таблицей
+
         table_btn_layout = QHBoxLayout()
         self.btn_delete = QPushButton("Удалить выбранную запись")
         self.btn_export = QPushButton("Экспорт в CSV")
@@ -177,7 +171,7 @@ class MainWindow(QMainWindow):
         table_btn_layout.addWidget(self.btn_clear)
         right_layout.addLayout(table_btn_layout)
 
-        # Область для изображения термометра
+
         self.lbl_image = QLabel("Фото термометра")
         self.lbl_image.setAlignment(Qt.AlignCenter)
         self.lbl_image.setMinimumHeight(200)
@@ -186,7 +180,7 @@ class MainWindow(QMainWindow):
         )
         right_layout.addWidget(self.lbl_image)
 
-        # Кнопка загрузки изображения
+
         self.btn_load_img = QPushButton("Загрузить фото термометра")
         self.btn_load_img.setStyleSheet(
             "background-color: #ff9800; color: white; "
@@ -194,7 +188,7 @@ class MainWindow(QMainWindow):
         )
         right_layout.addWidget(self.btn_load_img)
 
-        # Разделитель между левой и правой панелями
+
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(left_widget)
         splitter.addWidget(right_widget)
@@ -203,7 +197,7 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(splitter)
 
     def _bind_signals(self):
-        """Привязка сигналов к слотам через .connect() (требование задания)."""
+        "Привязка сигналов к слотам через .connect()"
         # При изменении температуры запускаем таймер (неблокирующая работа)
         self.spin_celsius.valueChanged.connect(self._on_temp_value_changed)
 
@@ -220,24 +214,24 @@ class MainWindow(QMainWindow):
         logger.info("Сигналы привязаны")
 
     def _on_temp_value_changed(self):
-        """Обработчик изменения значения — запускает таймер на 300 мс."""
+        "Обработчик изменения значения — запускает таймер на 300 мс."
         self.update_timer.start(300)
 
     def _recalculate_temperatures(self):
-        """Пересчёт температур по формулам F=C*9/5+32 и K=C+273.15."""
+        "Пересчёт температур по формулам F=C*9/5+32 и K=C+273.15"
         try:
             celsius = self.spin_celsius.value()
 
-            # Валидация: температура не может быть ниже абсолютного нуля
+
             if celsius < -273.15:
                 logger.warning(f"Температура ниже абсолютного нуля: {celsius}")
                 return
 
-            # Формулы конвертации
+
             fahrenheit = celsius * 9 / 5 + 32
             kelvin = celsius + 273.15
 
-            # Обновляем метки
+
             self.lbl_celsius.setText(f"{celsius:.2f} °C")
             self.lbl_fahrenheit.setText(f"{fahrenheit:.2f} °F")
             self.lbl_kelvin.setText(f"{kelvin:.2f} K")
@@ -247,7 +241,7 @@ class MainWindow(QMainWindow):
             logger.error(f"Ошибка конвертации: {e}")
 
     def _on_save(self):
-        """Сохранение конвертации в историю (БД)."""
+        "Сохранение конвертации в историю (БД)"
         logger.info("Начало сохранения записи")
         try:
             celsius = self.spin_celsius.value()
@@ -283,7 +277,7 @@ class MainWindow(QMainWindow):
             )
 
     def _on_delete(self):
-        """Удаление выбранной записи из БД."""
+        "Удаление выбранной записи из БД"
         try:
             selected = self.table.selectionModel().selectedRows()
             if not selected:
@@ -308,7 +302,7 @@ class MainWindow(QMainWindow):
             )
 
     def _on_export(self):
-        """Экспорт всех записей в CSV файл."""
+        "Экспорт всех записей в CSV файл"
         try:
             path, _ = QFileDialog.getSaveFileName(
                 self, "Экспорт в CSV", "", "CSV files (*.csv)"
@@ -318,9 +312,8 @@ class MainWindow(QMainWindow):
 
             records = self.db.get_all()
             with open(path, 'w', encoding='utf-8') as f:
-                # Записываем заголовок
                 f.write("temp_c,temp_f,temp_k,formula,notes,image_path\n")
-                # Записываем данные
+
                 for rec in records:
                     f.write(
                         f"{rec['temp_c']},{rec['temp_f']},{rec['temp_k']},"
@@ -338,7 +331,7 @@ class MainWindow(QMainWindow):
             )
 
     def _on_clear_history(self):
-        """Очистка всей истории конвертаций."""
+        "Очистка всей истории конвертаций"
         try:
             if QMessageBox.question(
                 self, "Подтверждение", "Вы уверены, что хотите удалить ВСЮ историю?"
@@ -354,7 +347,7 @@ class MainWindow(QMainWindow):
             )
 
     def _on_load_image(self):
-        """Загрузка изображения термометра через Pillow."""
+        "Загрузка изображения термометра через Pillow"
         try:
             path, _ = QFileDialog.getOpenFileName(
                 self, "Выберите изображение", "",
@@ -363,11 +356,11 @@ class MainWindow(QMainWindow):
             if not path:
                 return
 
-            # Интеграция Pillow: загрузка и масштабирование
+
             img = Image.open(path).convert("RGBA")
             img.thumbnail((200, 200), Image.LANCZOS)
 
-            # Конвертация Pillow → Qt (QImage → QPixmap)
+
             qt_img = QImage(
                 img.tobytes(), img.width, img.height,
                 QImage.Format_RGBA8888
@@ -387,7 +380,7 @@ class MainWindow(QMainWindow):
             )
 
     def _on_select_row(self):
-        """Заполнение полей при клике на строку таблицы."""
+        "Заполнение полей при клике на строку таблицы."
         try:
             selected = self.table.selectionModel().selectedRows()
             if not selected:
@@ -403,7 +396,7 @@ class MainWindow(QMainWindow):
             logger.error(f"Ошибка выбора строки: {e}")
 
     def _refresh_table(self):
-        """Обновление таблицы из БД."""
+        "Обновление таблицы из БД"
         try:
             self.table.setRowCount(0)
             records = self.db.get_all()
@@ -423,7 +416,7 @@ class MainWindow(QMainWindow):
             logger.error(f"Ошибка обновления таблицы: {e}")
 
     def closeEvent(self, event):
-        """Переопределение закрытия окна (требование задания)."""
+        "Переопределение закрытия окна"
         logger.info("Запрос на закрытие приложения")
         reply = QMessageBox.question(
             self, "Выход",

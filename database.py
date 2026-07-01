@@ -1,3 +1,7 @@
+"""
+Модуль работы с базой данных SQLite.
+Реализует CRUD операции для конвертера температур.
+"""
 import sqlite3
 import logging
 from typing import List, Dict, Optional
@@ -8,14 +12,14 @@ DB_FILE = "temperature_converter.db"
 
 
 class DatabaseManager:
-    "Менеджер базы данных для хранения истории конвертаций"
+    """Менеджер базы данных для хранения истории конвертаций."""
 
     def __init__(self):
-        "Инициализация менеджера БД"
+        """Инициализация менеджера БД."""
         self.conn: Optional[sqlite3.Connection] = None
 
     def init_db(self):
-        "Создание таблицы при первом запуске"
+        """Создание таблицы при первом запуске."""
         try:
             self.conn = sqlite3.connect(DB_FILE)
             self.conn.row_factory = sqlite3.Row
@@ -38,12 +42,14 @@ class DatabaseManager:
             raise
 
     def insert_record(self, data: Dict) -> int:
-        "Добавление записи о конвертации с валидацией"
+        """Добавление записи о конвертации с валидацией."""
         try:
+            # Валидация данных
             temp_c = float(data["temp_c"])
             temp_f = float(data["temp_f"])
             temp_k = float(data["temp_k"])
 
+            # Проверка на корректность температур
             if temp_c < -273.15:
                 raise ValueError("Температура ниже абсолютного нуля")
 
@@ -73,7 +79,7 @@ class DatabaseManager:
             raise
 
     def get_all(self) -> List[Dict]:
-        "Получение всех записей"
+        """Получение всех записей."""
         try:
             cursor = self.conn.cursor()
             cursor.execute("""
@@ -89,7 +95,7 @@ class DatabaseManager:
             raise
 
     def update_record(self, data: Dict):
-        "Обновление записи с валидацией"
+        """Обновление записи с валидацией."""
         try:
             temp_c = float(data["temp_c"])
             temp_f = float(data["temp_f"])
@@ -120,7 +126,7 @@ class DatabaseManager:
             raise
 
     def delete_record(self, record_id: int):
-        "Удаление записи"
+        """Удаление записи."""
         try:
             cursor = self.conn.cursor()
             cursor.execute("DELETE FROM conversions WHERE id=?", (record_id,))
@@ -130,8 +136,19 @@ class DatabaseManager:
             logger.error(f"Ошибка удаления записи: {e}")
             raise
 
+    def clear_all(self):
+        """Очистка всей таблицы истории."""
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("DELETE FROM conversions")
+            self.conn.commit()
+            logger.info("История очищена полностью")
+        except sqlite3.Error as e:
+            logger.error(f"Ошибка очистки истории: {e}")
+            raise
+
     def close(self):
-        "Закрытие соединения с БД"
+        """Закрытие соединения с БД."""
         try:
             if self.conn:
                 self.conn.close()

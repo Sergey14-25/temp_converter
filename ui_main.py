@@ -153,10 +153,11 @@ class MainWindow(QMainWindow):
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         right_layout.addWidget(self.table)
 
-        # Кнопки управления таблицей (НОВЫЕ КНОПКИ!)
+        # Кнопки управления таблицей
         table_btn_layout = QHBoxLayout()
         self.btn_delete = QPushButton("Удалить выбранную запись")
         self.btn_export = QPushButton("Экспорт в CSV")
+        self.btn_clear = QPushButton("Очистить историю")
 
         self.btn_delete.setStyleSheet(
             "background-color: #f44336; color: white; "
@@ -166,9 +167,14 @@ class MainWindow(QMainWindow):
             "background-color: #2196f3; color: white; "
             "padding: 8px 16px; border-radius: 5px;"
         )
+        self.btn_clear.setStyleSheet(
+            "background-color: #9e9e9e; color: white; "
+            "padding: 8px 16px; border-radius: 5px;"
+        )
 
         table_btn_layout.addWidget(self.btn_delete)
         table_btn_layout.addWidget(self.btn_export)
+        table_btn_layout.addWidget(self.btn_clear)
         right_layout.addLayout(table_btn_layout)
 
         # Область для изображения термометра
@@ -204,8 +210,9 @@ class MainWindow(QMainWindow):
         # Кнопки
         self.btn_save.clicked.connect(self._on_save)
         self.btn_load_img.clicked.connect(self._on_load_image)
-        self.btn_delete.clicked.connect(self._on_delete)  # Новая кнопка
-        self.btn_export.clicked.connect(self._on_export)  # Новая кнопка
+        self.btn_delete.clicked.connect(self._on_delete)
+        self.btn_export.clicked.connect(self._on_export)
+        self.btn_clear.clicked.connect(self._on_clear_history)
 
         # Выбор строки в таблице
         self.table.itemSelectionChanged.connect(self._on_select_row)
@@ -328,6 +335,22 @@ class MainWindow(QMainWindow):
             logger.error(f"Ошибка экспорта: {e}")
             QMessageBox.critical(
                 self, "Ошибка", f"Не удалось экспортировать данные:\n{e}"
+            )
+
+    def _on_clear_history(self):
+        """Очистка всей истории конвертаций."""
+        try:
+            if QMessageBox.question(
+                self, "Подтверждение", "Вы уверены, что хотите удалить ВСЮ историю?"
+            ) == QMessageBox.Yes:
+                self.db.clear_all()
+                self._refresh_table()
+                logger.info("История очищена пользователем")
+                QMessageBox.information(self, "Успех", "История полностью очищена!")
+        except Exception as e:
+            logger.error(f"Ошибка очистки истории: {e}")
+            QMessageBox.critical(
+                self, "Ошибка", f"Не удалось очистить историю:\n{e}"
             )
 
     def _on_load_image(self):

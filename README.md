@@ -16,19 +16,20 @@
 
 ## Запуск проекта
 
-1. Создайте виртуальное окружение:
+Запуск проекта
 
-```bash
-python -m venv venv
+Создайте виртуальное окружение: python -m venv venv
+Активируйте:
+Windows: venv\Scripts\activate
+macOS/Linux: source venv/bin/activate
+Установите зависимости: pip install -r requirements.txt
+Запустите: python main.py
+Структура проекта
 
-### Технологии
+main.py — точка входа, настройка QApplication и логирования
+ui_main.py — главное окно: вёрстка, сигналы/слоты, CRUD-обработчики
+database.py — слой данных: SQLite, CRUD-операции
 
-- Python 3.12
-- PyQt5
-- SQLite3
-- Pillow
+Технологии
 
-## Автор
-
-Пантелеймонов Сергей Сергеевич
-ФМ-14-25
+Python 3, PyQt5, SQLite3, Pillow
